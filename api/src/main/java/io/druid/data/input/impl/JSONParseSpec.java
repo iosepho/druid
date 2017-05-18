@@ -24,6 +24,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonParser.Feature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import com.google.common.base.Optional;
 import io.druid.java.util.common.parsers.JSONPathParser;
 import io.druid.java.util.common.parsers.Parser;
 
@@ -39,19 +40,22 @@ public class JSONParseSpec extends ParseSpec
   private final ObjectMapper objectMapper;
   private final JSONPathSpec flattenSpec;
   private final Map<String, Boolean> featureSpec;
+  private final String listDelimiter;
 
   @JsonCreator
   public JSONParseSpec(
       @JsonProperty("timestampSpec") TimestampSpec timestampSpec,
       @JsonProperty("dimensionsSpec") DimensionsSpec dimensionsSpec,
       @JsonProperty("flattenSpec") JSONPathSpec flattenSpec,
-      @JsonProperty("featureSpec") Map<String, Boolean> featureSpec
+      @JsonProperty("featureSpec") Map<String, Boolean> featureSpec,
+      @JsonProperty("listDelimiter") String listDelimiter
   )
   {
     super(timestampSpec, dimensionsSpec);
     this.objectMapper = new ObjectMapper();
     this.flattenSpec = flattenSpec != null ? flattenSpec : new JSONPathSpec(true, null);
     this.featureSpec = (featureSpec == null) ? new HashMap<String, Boolean>() : featureSpec;
+    this.listDelimiter = listDelimiter;
     for (Map.Entry<String, Boolean> entry : this.featureSpec.entrySet()) {
       Feature feature = Feature.valueOf(entry.getKey());
       objectMapper.configure(feature, entry.getValue());
@@ -75,7 +79,8 @@ public class JSONParseSpec extends ParseSpec
     return new JSONPathParser(
         convertFieldSpecs(flattenSpec.getFields()),
         flattenSpec.isUseFieldDiscovery(),
-        objectMapper
+        objectMapper,
+        Optional.fromNullable(listDelimiter)
     );
   }
 

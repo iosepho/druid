@@ -22,6 +22,10 @@ package io.druid.java.util.common.parsers;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Charsets;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.common.base.Splitter;
+import com.google.common.base.Optional;
 import com.jayway.jsonpath.Configuration;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.Option;
@@ -48,6 +52,8 @@ public class JSONPathParser implements Parser<String, Object>
   private final ObjectMapper mapper;
   private final CharsetEncoder enc = Charsets.UTF_8.newEncoder();
   private final Configuration jsonPathConfig;
+  private final String listDelimiter;
+  private final Splitter listSplitter;
 
   /**
    * Constructor
@@ -57,11 +63,13 @@ public class JSONPathParser implements Parser<String, Object>
    *                          Only fields that contain a singular value or flat list (list containing no subobjects or lists) are automatically added.
    * @param mapper            Optionally provide an ObjectMapper, used by the parser for reading the input JSON.
    */
-  public JSONPathParser(List<FieldSpec> fieldSpecs, boolean useFieldDiscovery, ObjectMapper mapper)
+  public JSONPathParser(List<FieldSpec> fieldSpecs, boolean useFieldDiscovery, ObjectMapper mapper, final Optional<String> listDelimiter)
   {
     this.fieldPathMap = generateFieldPaths(fieldSpecs);
     this.useFieldDiscovery = useFieldDiscovery;
     this.mapper = mapper == null ? new ObjectMapper() : mapper;
+    this.listDelimiter = listDelimiter.isPresent() ? listDelimiter.get() : Parsers.DEFAULT_LIST_DELIMITER;
+    this.listSplitter = Splitter.on(this.listDelimiter);
 
     // Avoid using defaultConfiguration, as this depends on json-smart which we are excluding.
     this.jsonPathConfig = Configuration.builder()
@@ -175,7 +183,21 @@ public class JSONPathParser implements Parser<String, Object>
     }
 
     if (val instanceof String) {
-      return charsetFix((String) val);
+
+      String strVal = (String) val;
+
+      if (strVal.contains(this.listDelimiter)) {
+
+        return Lists.newArrayList(
+                Iterables.transform(
+                        listSplitter.split(strVal),
+                        (x) -> charsetFix(x)
+                )
+        );
+      }
+      else {
+        return charsetFix(strVal);
+      }
     }
 
     if (val instanceof List) {
